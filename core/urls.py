@@ -5,6 +5,8 @@ from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
 from rest_framework_simplejwt.views import token_obtain_pair , token_refresh
 from main.views import *
+from django.conf import settings
+from django.conf.urls.static import static
 from main.models import *
 
 schema_view = get_schema_view(
@@ -26,8 +28,12 @@ urlpatterns = [
 
 ]
 
+
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
 urlpatterns += [
     path('users/', UserListCreateAPIView.as_view(), name='user-list-create'),
+    path('registor/' , RegisterAPIView.as_view(), name='user-register'),
     path('brands/', BrandListAPIView.as_view(), name='brand-list-create'),
     path('brands/create', BrandCreateAPIView.as_view(),),
     path('brands/<int:pk>/', BrandDetailAPIView.as_view(), name='brand-detail'),

@@ -8,6 +8,10 @@ from .serializers import *
 from django.shortcuts import get_object_or_404
 from .pagination import CustomPageNumberPagination
 
+class RegisterAPIView(generics.CreateAPIView):
+    serializer_class = RegisterSerializer
+    permission_classes = (AllowAny,)
+
 class UserListCreateAPIView(APIView):
     permission_classes = [IsAuthenticated]
     pagination_class = CustomPageNumberPagination
@@ -269,7 +273,7 @@ class VersusItemListAPIView(APIView):
     ordering_fields = ['created_at',]
 
     def get(self, request, *args, **kwargs):
-        versus_items = VersusItem.objects.all()
+        versus_items = VersusItem.objects.filter(user=request.user)
         serializer = VersusItemSerializer(versus_items, many=True)
         return Response(serializer.data)
 
@@ -278,13 +282,28 @@ class VersusItemCreateAPIView(generics.CreateAPIView):
     queryset = VersusItem.objects.all()
     serializer_class = VersusItemSerializer
 
+    def post(self, request, *args, **kwargs):
+
+        product_id = request.data.get('product')
+        if not product_id:
+            return Response({"detail": "Product ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            product = Product.objects.get(id=product_id)
+        except Product.DoesNotExist:
+            return Response({"detail": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+        liked_item, created = VersusItem.objects.get_or_create(user=request.user, product=product)
+        if created:
+            return Response({"detail": "Product added to Versus list."}, status=status.HTTP_201_CREATED)
+        else:
+            return Response({"detail": "Product is already in your Versus list."}, status=status.HTTP_200_OK)
+
 class VersusItemDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated]
     queryset = VersusItem.objects.all()
     serializer_class = VersusItemSerializer
 
     def get_queryset(self):
-        if getattr(self, 'swagger_fake_view', False):
+        if not self.request.user.is_authenticated:
             return VersusItem.objects.none()
         return VersusItem.objects.filter(user=self.request.user)
 

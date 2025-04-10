@@ -1,12 +1,13 @@
 from rest_framework import serializers
 from .models import *
+from .permissions import *
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'password']
+        fields = ['id', 'username', 'email', 'password' ,'isadmin']
 
     def create(self, validated_data):
         user = User.objects.create_user(
@@ -14,12 +15,14 @@ class RegisterSerializer(serializers.ModelSerializer):
             email=validated_data.get('email'),
             password=validated_data['password']
         )
+        user.isadmin = validated_data.get('isadmin', False)
+        user.save()
         return user
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id", "username", "first_name", "last_name", "password", "image", "phone_number", "card_number", "date_joined"]
+        fields = ["id", "username", "first_name", "last_name", "password", "image", "phone_number", "card_number", "date_joined", "isadmin"]
         extra_kwargs = {
             "password": {"write_only": True},
             "date_joined": {"read_only": True}
@@ -48,16 +51,18 @@ class SubCategorySerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class ProductSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Product
-        fields = '__all__'
-
-
 class ImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = Image
         fields = '__all__'
+
+class ProductSerializer(serializers.ModelSerializer):
+    images = ImageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Product
+        fields = '__all__'
+
 
 
 class PropertyTypeSerializer(serializers.ModelSerializer):

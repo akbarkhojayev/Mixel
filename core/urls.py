@@ -1,8 +1,6 @@
 from django.contrib import admin
 from django.urls import path
-from rest_framework import permissions
 from drf_yasg.views import get_schema_view
-from drf_yasg import openapi
 from rest_framework_simplejwt.views import token_obtain_pair , token_refresh
 from main.views import *
 from django.conf import settings
@@ -32,7 +30,7 @@ urlpatterns = [
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
 urlpatterns += [
-    path('users/', UserListCreateAPIView.as_view(), name='user-list-create'),
+    path('users/', UserListAPIView.as_view(), name='user-list-create'),
     path('users/me' , UserRetrieveUpdateDestroyAPIView.as_view(), name='user-retrieve-update'),
     path('users/register' , RegisterAPIView.as_view(), name='user-register'),
     path('brands/', BrandListAPIView.as_view(), name='brand-list-create'),
@@ -41,10 +39,8 @@ urlpatterns += [
     path('categories/', CategoryListAPIView.as_view(), name='category-list-create'),
     path('categories/create', CategoryCreateAPIView.as_view(),),
     path('categories/<int:pk>/', CategoryRetrieveUpdateAPIView.as_view(), name='category-detail'),
-    path('subcategories/', SubCategoryListAPIView.as_view(), name='subcategory-list-create'),
-    path('subcategories/create', SubCategoryCreateAPIView.as_view(),),
-    path('subcategories/<int:pk>/', SubCategoryDetailAPIView.as_view(), name='subcategory-detail'),
     path('products/', ProductListAPIView.as_view(), name='product-list-create'),
+    path('products/filter/' , FilterProductAPIView.as_view(), name='product-filter'),
     path('products/create/', ProductCreateAPIView.as_view() ),
     path('products/<int:pk>/', ProductRetrieveUpdateDestroyAPIView.as_view(), name='product-detail'),
     path('images/', ImageListAPIView.as_view(), name='image-list-create'),
@@ -65,15 +61,17 @@ urlpatterns += [
     path('versus-items/', VersusItemListAPIView.as_view(), name='versusitem-list-create'),
     path('versus-items/add/', VersusItemCreateAPIView.as_view(),),
     path('versus-items/<int:pk>/', VersusItemDetailAPIView.as_view(), name='versusitem-detail'),
-    path('discounts/', DiscountListAPIView.as_view(), name='discount-list-create'),
-    path('discounts/create/', DiscountCreateAPIView.as_view(),),
-    path('discounts/<int:pk>/', DiscountDetailAPIView.as_view(), name='discount-detail'),
     path('messages/', MessageListAPIView.as_view(), name='message-list-create'),
     path('messages/create/', MessageCreateAPIView.as_view(), ),
     path('messages/<int:pk>/', MessageDetailAPIView.as_view(), name='message-detail'),
-    path('product-images/', ProductImageCreateAPIView.as_view(), name='product-image-create'),
+    path('property-types/', PropertyTypeListCreateView.as_view(), name='property-type-list-create'),
+    path('property-types/<int:pk>/', PropertyTypeDetailView.as_view(), name='property-type-detail'),
+    path('properties/', PropertyListCreateView.as_view(), name='property-list-create'),
+    path('properties/<int:pk>/', PropertyDetailView.as_view(), name='property-detail'),
+    path("galary/", GalaryListAPIView.as_view(),),
+    path('galary/<int:pk>/', GalaryRetrieveAPIView.as_view(), name='galary-detail'),
+    path("galary/create", GalaryCreateAPIView.as_view(),),
 ]
-
 
 urlpatterns += [
     path('token/', token_obtain_pair ),

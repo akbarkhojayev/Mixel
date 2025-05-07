@@ -1,5 +1,7 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+from django.db.models import Model
+
 
 class User(AbstractUser):
 
@@ -12,13 +14,6 @@ class User(AbstractUser):
         return self.username
 
 
-class Brand(models.Model):
-    name = models.CharField(max_length=100)
-
-    def __str__(self):
-        return self.name
-
-
 class Category(models.Model):
     name = models.CharField(max_length=100)
     image = models.ImageField(upload_to='images/', null=True, blank=True)
@@ -27,13 +22,23 @@ class Category(models.Model):
     def __str__(self):
         return self.name
 
-class SubCategory(models.Model):
+class Galary(models.Model):
+    image = models.ImageField(upload_to='images/', null=True, blank=True)
+
+    def __str__(self):
+        return str(self.id)
+
+    class Meta:
+        verbose_name_plural = "Galaries"
+
+
+class Brand(models.Model):
     name = models.CharField(max_length=100)
+    image = models.ImageField(upload_to='images/', null=True, blank=True)
     category = models.ForeignKey(Category, on_delete=models.CASCADE)
 
     def __str__(self):
         return self.name
-
 
 class Product(models.Model):
     name = models.CharField(max_length=100)
@@ -42,13 +47,15 @@ class Product(models.Model):
     price = models.FloatField()
     monthly_price = models.FloatField()
     country = models.CharField(max_length=100)
+    discount = models.FloatField(blank=True, null=True)
+    discount_price = models.FloatField(blank=True, null=True)
+    discount_date_finished = models.DateField(blank=True, null=True)
     brand = models.ForeignKey(Brand, on_delete=models.CASCADE)
-    sub_category = models.ForeignKey(SubCategory, on_delete=models.CASCADE)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    category = models.ForeignKey(Category, on_delete=models.CASCADE)
+    galary = models.ForeignKey(Galary, on_delete=models.SET_NULL, null=True, blank=True)
 
     def __str__(self):
         return self.name
-
 
 class Image(models.Model):
     image = models.ImageField(upload_to='images/', null=True, blank=True)
@@ -62,6 +69,9 @@ class Image(models.Model):
 class PropertyType(models.Model):
     title = models.CharField(max_length=100)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.title
 
 class Property(models.Model):
     title = models.CharField(max_length=100)
@@ -127,16 +137,10 @@ class LikedItem(models.Model):
 class VersusItem(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    category = models.ForeignKey(Category, on_delete=models.CASCADE , blank=True, null=True)
 
     def __str__(self):
         return self.product.name
-
-class Discount(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    percentage = models.PositiveIntegerField()
-    next_price = models.FloatField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    finished_at = models.DateTimeField()
 
 class Message(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -146,3 +150,4 @@ class Message(models.Model):
 
     def __str__(self):
         return self.user.username
+

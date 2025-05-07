@@ -31,6 +31,7 @@ ALLOWED_HOSTS = ["*"]
 # Application definition
 
 INSTALLED_APPS = [
+    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -43,6 +44,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'drf_yasg',
     'corsheaders',
+    'django_filters',
 ]
 
 MIDDLEWARE = [
@@ -79,7 +81,11 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
 
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-    )
+    ),
+    'DEFAULT_FILTER_BACKENDS': [
+
+         'django_filters.rest_framework.DjangoFilterBackend'
+    ],
 
 }
 
@@ -108,6 +114,19 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'core.wsgi.application'
 
+JAZZMIN_SETTINGS = {
+    'site_title': 'Euro Site',
+    'site_header': 'Euro Site',
+    'site_brand': 'Euro Site',
+    'welcome_sign': 'Welcome to Euro Site!',
+    'show_ui_builder': True,
+    "copyright": "O‘quv Markazi",
+    "navigation_expanded": True,
+    "topmenu_links": [
+        {"name": "Bosh sahifa", "url": "/", "new_window": True},
+    ],
+    "hide_apps": ["auth"],
+}
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
@@ -169,4 +188,3 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 AUTH_USER_MODEL = 'main.User'
-

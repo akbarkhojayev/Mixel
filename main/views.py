@@ -1,19 +1,24 @@
-from rest_framework.exceptions import PermissionDenied
+from collections import defaultdict
+from django_filters.rest_framework import DjangoFilterBackend
+from drf_yasg import openapi
+from drf_yasg.utils import swagger_auto_schema
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.filters import SearchFilter, OrderingFilter
+from rest_framework.generics import get_object_or_404, GenericAPIView
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
-from rest_framework.response import Response
 from rest_framework import generics
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny, SAFE_METHODS
 from .serializers import *
-from django.shortcuts import get_object_or_404
 from .pagination import CustomPageNumberPagination
+
 
 class RegisterAPIView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
     permission_classes = (AllowAny,)
 
-class UserListCreateAPIView(generics.ListCreateAPIView):
+class UserListAPIView(generics.ListAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
@@ -22,6 +27,7 @@ class UserListCreateAPIView(generics.ListCreateAPIView):
     search_fields = ['username', 'email']
     ordering_fields = ['date_joined']
 
+
 class UserRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
@@ -29,71 +35,147 @@ class UserRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
     def get_object(self):
         return self.request.user
 
+
 class BrandListAPIView(generics.ListAPIView):
     queryset = Brand.objects.all()
     serializer_class = BrandSerializer
     permission_classes = [AllowAny]
     pagination_class = CustomPageNumberPagination
-    filter_backends = [SearchFilter]
+    filter_backends = [DjangoFilterBackend, SearchFilter,OrderingFilter,]
+    filterset_fields = ['category']
     search_fields = ['name']
+    ordering_fields = ['name',]
+
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter(
+                name='category',
+                in_=openapi.IN_QUERY,
+                type=openapi.TYPE_INTEGER,
+                description='Category id filter',
+            ),
+        ]
+    )
+
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+
 
 class BrandCreateAPIView(generics.CreateAPIView):
     queryset = Brand.objects.all()
     serializer_class = BrandSerializer
     permission_classes = [IsAdmin]
+    parser_classes = [MultiPartParser, FormParser]
+
 
 class BrandDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Brand.objects.all()
     serializer_class = BrandSerializer
     permission_classes = [IsAdmin]
 
+
 class CategoryListAPIView(generics.ListAPIView):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     permission_classes = [AllowAny]
     pagination_class = CustomPageNumberPagination
-    filter_backends = [SearchFilter, OrderingFilter]
+    filter_backends = [DjangoFilterBackend , SearchFilter, OrderingFilter]
+    filterset_fields = ['name','brand']
     search_fields = ['name']
     ordering_fields = ['created_at', 'price']
+    parser_classes = [MultiPartParser, FormParser]
+
 
 class CategoryCreateAPIView(generics.CreateAPIView):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     permission_classes = [IsAdmin]
 
+
 class CategoryRetrieveUpdateAPIView(generics.RetrieveUpdateAPIView):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     permission_classes = [IsAdmin]
-
-
-class SubCategoryListAPIView(generics.ListAPIView):
-    queryset = SubCategory.objects.all()
-    serializer_class = SubCategorySerializer
-    permission_classes = [AllowAny]
-    pagination_class = CustomPageNumberPagination
-    filter_backends = [SearchFilter, OrderingFilter]
-    search_fields = ['name']
-    ordering_fields = ['created_at']
-
-class SubCategoryCreateAPIView(generics.CreateAPIView):
-    queryset = SubCategory.objects.all()
-    serializer_class = SubCategorySerializer
-    permission_classes = [IsAdmin]
-
-class SubCategoryDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = SubCategory.objects.all()
-    serializer_class = SubCategorySerializer
-    permission_classes = [IsAdmin]
-
 class ProductListAPIView(generics.ListAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     permission_classes = [AllowAny]
     pagination_class = CustomPageNumberPagination
-    filter_backends = [SearchFilter, OrderingFilter]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['brand', 'category' ,'galary']
     search_fields = ['name', 'brand__name']
     ordering_fields = ['created_at', 'price']
+
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter(
+                name='brand',
+                in_=openapi.IN_QUERY,
+                type=openapi.TYPE_STRING,
+                description='Brand id filter',
+            ),
+            openapi.Parameter(
+                name='category',
+                in_=openapi.IN_QUERY,
+                type=openapi.TYPE_INTEGER,
+                description='Category id filter',
+            ),
+            openapi.Parameter(
+                name='galary',
+                in_=openapi.IN_QUERY,
+                type=openapi.TYPE_STRING,
+                description='Galary id filter',
+
+            )
+        ]
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+class FilterProductAPIView(APIView):
+    def filter_products(self, products, filters):
+        min_price = filters.get("minPrice")
+        if min_price:
+            try:
+                products = products.filter(price__gte=float(min_price))
+            except ValueError:
+                pass
+
+        max_price = filters.get("maxPrice")
+        if max_price:
+            try:
+                products = products.filter(price__lte=float(max_price))
+            except ValueError:
+                pass
+
+        categories = filters.get("category", [])
+        if isinstance(categories, (str, int)):
+            categories = [categories]
+        if categories:
+            if all(str(c).isdigit() for c in categories):
+                products = products.filter(category__id__in=categories)
+            else:
+                products = products.filter(category__name__in=categories)
+
+        brands = filters.get("brand", [])
+        if isinstance(brands, (str, int)):
+            brands = [brands]
+        if brands:
+            if all(str(b).isdigit() for b in brands):
+                products = products.filter(brand__id__in=brands)
+            else:
+                products = products.filter(brand__name__in=brands)
+
+        return products
+
+    def post(self, request):
+        products = Product.objects.all()
+        filtered_products = self.filter_products(products, request.data)
+        serializer = ProductSerializer(filtered_products, many=True, context={'request': request})
+        return Response({"products": serializer.data}, status=status.HTTP_200_OK)
+
+
 
 class ProductCreateAPIView(generics.CreateAPIView):
     queryset = Product.objects.all()
@@ -128,6 +210,27 @@ class ProductRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView)
             raise PermissionDenied(detail="You are not the owner of this product")
         instance.delete()
 
+class GalaryListAPIView(generics.ListAPIView):
+    queryset = Galary.objects.all()
+    serializer_class = GalarySerializer
+    permission_classes = [AllowAny]
+    parser_classes = [MultiPartParser, FormParser]
+    pagination_class = CustomPageNumberPagination
+
+class GalaryCreateAPIView(generics.CreateAPIView):
+    queryset = Galary.objects.all()
+    serializer_class = GalarySerializer
+    permission_classes = [IsAdmin]
+    parser_classes = [MultiPartParser, FormParser]
+
+class GalaryRetrieveAPIView(generics.RetrieveAPIView):
+    serializer_class = GalarySerializer
+    permission_classes = [AllowAny]
+
+    def get_object(self):
+        queryset = Galary.objects.all()
+        return get_object_or_404(queryset, pk=self.kwargs['pk'])
+
 class ImageListAPIView(generics.ListAPIView):
     queryset = Image.objects.all()
     serializer_class = ImageSerializer
@@ -137,10 +240,13 @@ class ImageListAPIView(generics.ListAPIView):
     search_fields = ['product__name']
     ordering_fields = ['main', 'product__name']
 
+
 class ImageCreateAPIView(generics.CreateAPIView):
     queryset = Image.objects.all()
     serializer_class = ImageSerializer
     permission_classes = [IsAdmin]
+    parser_classes = [MultiPartParser, FormParser]
+
 
 class ImageDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Image.objects.all()
@@ -158,6 +264,7 @@ class ImageDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
             raise PermissionDenied("Bu mahsulotga oid rasmni o‘chirishga ruxsatingiz yo‘q.")
         instance.delete()
 
+
 class CartItemListAPIView(generics.ListAPIView):
     serializer_class = CartItemSerializer
     permission_classes = [IsAuthenticated]
@@ -169,6 +276,7 @@ class CartItemListAPIView(generics.ListAPIView):
     def get_queryset(self):
         return CartItem.objects.filter(user=self.request.user)
 
+
 class CartItemCreateAPIView(generics.CreateAPIView):
     queryset = CartItem.objects.all()
     serializer_class = CartItemSerializer
@@ -176,6 +284,7 @@ class CartItemCreateAPIView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
+
 
 class CartItemDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = CartItemSerializer
@@ -195,6 +304,7 @@ class CartItemDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
             raise PermissionDenied("Siz faqat o'z cart item'laringizni o'chirishingiz mumkin.")
         instance.delete()
 
+
 class OrderListAPIView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     pagination_class = CustomPageNumberPagination
@@ -210,7 +320,7 @@ class OrderListAPIView(generics.ListAPIView):
 class OrderCreateAPIView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]
     queryset = Order.objects.all()
-    serializer_class = OrderSerializer
+    serializer_class = OrderCreateSerializer
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -233,14 +343,20 @@ class OrderDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
             raise PermissionDenied(detail="You are not the owner of this order.")
         instance.delete()
 
+
 class OrderItemListAPIView(generics.ListAPIView):
+    serializer_class = OrderItemSerializer
     pagination_class = CustomPageNumberPagination
+    permission_classes = [IsAuthenticated]
     filter_backends = [SearchFilter, OrderingFilter]
     search_fields = ['first_name', 'last_name', 'phone_number']
     ordering_fields = ['created_at']
 
     def get_queryset(self):
-        return OrderItem.objects.filter(order__user=self.request.user).all()
+        user = self.request.user
+        if user.is_authenticated:
+            return OrderItem.objects.filter(order__user=user)
+        return OrderItem.objects.none()
 
     def get(self, request, *args, **kwargs):
         orders = self.get_queryset()
@@ -255,6 +371,7 @@ class OrderItemCreateAPIView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save()
+
 
 class OrderItemDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     queryset = OrderItem.objects.all()
@@ -279,18 +396,17 @@ class OrderItemDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
         instance.delete()
 
 
-class LikedItemListAPIView(APIView):
+class LikedItemListAPIView(generics.ListAPIView):
+    queryset = LikedItem.objects.all()
+    serializer_class = LikedItemListSerializer
     permission_classes = [IsAuthenticated]
     pagination_class = CustomPageNumberPagination
-    filter_backends = [SearchFilter, OrderingFilter]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    ordering_fields = ['created_at', 'price']
     search_fields = ['product__name']
-    ordering_fields = ['created_at']
 
-    def get(self, request, *args, **kwargs):
-        liked_items = LikedItem.objects.filter(user=request.user)
-        serializer = LikedItemSerializer(liked_items, many=True)
-        return Response(serializer.data)
-
+    def get_queryset(self):
+        return LikedItem.objects.filter(user=self.request.user)
 
 class ProductAddLikedApiView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]
@@ -311,6 +427,7 @@ class ProductAddLikedApiView(generics.CreateAPIView):
             return Response({"detail": "Product added to liked list."}, status=status.HTTP_201_CREATED)
         else:
             return Response({"detail": "Product is already in your liked list."}, status=status.HTTP_200_OK)
+
 
 class LikedItemDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated]
@@ -334,106 +451,85 @@ class LikedItemDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
         instance.delete()
 
 
+# class VersusItemCreateAPIView(generics.CreateAPIView):
+#     permission_classes = [IsAuthenticated]
+#     queryset = VersusItem.objects.all()
+#     serializer_class = VersusItemSerializer
+#
+#     def post(self, request, *args, **kwargs):
+#         product_id = request.data.get('product')
+#         if not product_id:
+#             return Response({"detail": "Product ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+#
+#         try:
+#             product = Product.objects.get(id=product_id)
+#         except Product.DoesNotExist:
+#             return Response({"detail": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+#
+#         versus_item, created = VersusItem.objects.get_or_create(user=request.user, product=product)
+#
+#         if created:
+#             return Response({"detail": "Product added to Versus list."}, status=status.HTTP_201_CREATED)
+#         else:
+#             return Response({"detail": "Product is already in your Versus list."}, status=status.HTTP_200_OK)
+#
+
+# class VersusItemListAPIView(generics.ListAPIView):
+#     permission_classes = [IsAuthenticated]
+#     serializer_class = VersusItemSerializer
+#     filter_backends = [DjangoFilterBackend]
+#     filterset_fields = ['category']
+#
+#     def get_queryset(self):
+#         return VersusItem.objects.filter(user=self.request.user)
+
 
 class VersusItemListAPIView(APIView):
     permission_classes = [IsAuthenticated]
-    pagination_class = CustomPageNumberPagination
-    filter_backends = [SearchFilter, OrderingFilter]
-    search_fields = ['product__name']
-    ordering_fields = ['created_at']
 
-    def get(self, request, *args, **kwargs):
-        versus_items = VersusItem.objects.filter(user=request.user)
+    def get(self, request):
+        user = request.user
+        versus_items = VersusItem.objects.filter(user=user).select_related('product__category', 'product')
         serializer = VersusItemSerializer(versus_items, many=True)
-        return Response(serializer.data)
+
+        grouped_data = defaultdict(list)
+        for item in serializer.data:
+            category_name = VersusItem.objects.get(id=item['id']).product.category.name
+            grouped_data[category_name].append(item)
+
+        return Response(grouped_data)
 
 
 class VersusItemCreateAPIView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]
-    queryset = VersusItem.objects.all()
     serializer_class = VersusItemSerializer
 
-    def post(self, request, *args, **kwargs):
-        product_id = request.data.get('product')
-        if not product_id:
-            return Response({"detail": "Product ID is required"}, status=status.HTTP_400_BAD_REQUEST)
+    def perform_create(self, serializer):
+        user = self.request.user
+        product = serializer.validated_data['product']
 
-        try:
-            product = Product.objects.get(id=product_id)
-        except Product.DoesNotExist:
-            return Response({"detail": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
-
-        versus_item, created = VersusItem.objects.get_or_create(user=request.user, product=product)
-
-        if created:
-            return Response({"detail": "Product added to Versus list."}, status=status.HTTP_201_CREATED)
-        else:
-            return Response({"detail": "Product is already in your Versus list."}, status=status.HTTP_200_OK)
+        if VersusItem.objects.filter(user=user, product=product).exists():
+            raise serializers.ValidationError("Bu product allaqachon qo‘shilgan.")
+        serializer.save(user=user, category=product.category)
 
 
 class VersusItemDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated]
-    queryset = VersusItem.objects.all()
     serializer_class = VersusItemSerializer
 
     def get_queryset(self):
-        if not self.request.user.is_authenticated:
-            return VersusItem.objects.none()
         return VersusItem.objects.filter(user=self.request.user)
 
     def perform_update(self, serializer):
-        versus_item = self.get_object()
-        if versus_item.user != self.request.user:
-            raise PermissionDenied(detail="Siz bu Versus itemning egasi emassiz.")
+        if self.get_object().user != self.request.user:
+            raise PermissionDenied("Siz bu Versus itemning egasi emassiz.")
         serializer.save()
 
     def perform_destroy(self, instance):
         if instance.user != self.request.user:
-            raise PermissionDenied(detail="Siz bu Versus itemning egasi emassiz.")
+            raise PermissionDenied("Siz bu Versus itemning egasi emassiz.")
         instance.delete()
 
-
-class DiscountListAPIView(APIView):
-    permission_classes = [AllowAny]
-    pagination_class = CustomPageNumberPagination
-    filter_backends = [SearchFilter, OrderingFilter]
-    search_fields = ['product__name']
-    ordering_fields = ['created_at']
-
-    def get(self, request, *args, **kwargs):
-        discounts = Discount.objects.all()
-        serializer = DiscountSerializer(discounts, many=True)
-        return Response(serializer.data)
-
-class DiscountCreateAPIView(generics.CreateAPIView):
-    queryset = Discount.objects.all()
-    serializer_class = DiscountSerializer
-    permission_classes = [IsAdmin]
-
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-
-class DiscountDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdmin]
-    queryset = Discount.objects.all()
-    serializer_class = DiscountSerializer
-
-    def get_queryset(self):
-        if not self.request.user.is_authenticated:
-            return Discount.objects.none()
-        return Discount.objects.filter(user=self.request.user)
-
-    def perform_update(self, serializer):
-        discount = self.get_object()
-        if discount.user != self.request.user:
-            raise PermissionDenied(detail="Siz bu discountni yangilash huquqiga ega emassiz.")
-        serializer.save()
-
-    def perform_destroy(self, instance):
-
-        if instance.user != self.request.user:
-            raise PermissionDenied(detail="Siz bu discountni o'chirish huquqiga ega emassiz.")
-        instance.delete()
 
 class MessageListAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -443,6 +539,7 @@ class MessageListAPIView(APIView):
         messages = Message.objects.filter(user=request.user)
         serializer = MessageSerializer(messages, many=True)
         return Response(serializer.data)
+
 
 class MessageCreateAPIView(generics.CreateAPIView):
     queryset = Message.objects.all()
@@ -461,21 +558,22 @@ class MessageDetailAPIView(generics.RetrieveUpdateDestroyAPIView):
         return Message.objects.filter(user=self.request.user)
 
 
+class PropertyTypeListCreateView(generics.ListCreateAPIView):
+    queryset = PropertyType.objects.all()
+    serializer_class = PropertyTypeSerializer
+    permission_classes = (AllowAny,)
 
-class ProductImageCreateAPIView(generics.CreateAPIView):
-    serializer_class = ProductImageSerializer
-    permission_classes = [IsAdmin]
+class PropertyTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = PropertyType.objects.all()
+    serializer_class = PropertyTypeSerializer
+    permission_classes = (AllowAny,)
 
-    def create(self, request, *args, **kwargs):
-        product_pk = kwargs.get('product_pk')
+class PropertyListCreateView(generics.ListCreateAPIView):
+    queryset = Property.objects.all()
+    serializer_class = PropertySerializer
+    permission_classes = (AllowAny,)
 
-        product = get_object_or_404(Product, pk=product_pk)
-
-        if product.user != request.user:
-            raise PermissionDenied("Siz bu mahsulot uchun rasm qo'shish huquqiga ega emassiz.")
-
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save(product=product)
-
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+class PropertyDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Property.objects.all()
+    serializer_class = PropertySerializer
+    permission_classes = (AllowAny,)
